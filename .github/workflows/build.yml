@@ -37,7 +37,6 @@ jobs:
       - name: Create platform-tools stub (if needed)
         run: |
           mkdir -p platform-tools
-
       - name: Verify structure
         run: |
           ls -R cmdline-tools
@@ -47,6 +46,14 @@ jobs:
 
       - name: Generate key
         run: ./make.sh keygen
+      - name: Fix Android SDK path conflict
+        run: |
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+
+          # IMPORTANT: remove conflicting custom value from make.sh environment
+          unset ANDROID_HOME || true
+
 
       - name: Build GFN profile
         run: ./make.sh build confs/gfn/webapk.conf
