@@ -1,4 +1,4 @@
-name: Build WebAPK (make.sh + Android CLI)
+name: Build WebAPK (make.sh fixed)
 
 on:
   workflow_dispatch:
@@ -9,68 +9,48 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    env:
-      ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ----------------------------
-      # 1. Install system dependencies
-      # ----------------------------
-      - name: Install base tools
+      - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y wget unzip bash openjdk-17-jdk
+          sudo apt-get install -y wget unzip openjdk-17-jdk
 
       # ----------------------------
-      # 2. Install Android Command Line Tools
+      # CRITICAL FIX: create expected local SDK path
       # ----------------------------
-      - name: Install Android SDK CLI
+      - name: Setup local cmdline-tools (REQUIRED BY make.sh)
         run: |
-          mkdir -p $ANDROID_SDK_ROOT/cmdline-tools
-          cd $ANDROID_SDK_ROOT
+          mkdir -p cmdline-tools
 
           wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
           unzip tools.zip -d cmdline-tools
+
+          # Fix folder nesting (VERY IMPORTANT)
           mv cmdline-tools/cmdline-tools cmdline-tools/latest
 
-          echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
-          echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
-
       # ----------------------------
-      # 3. Accept licenses + install platform tools
+      # Ensure expected Android structure exists
       # ----------------------------
-      - name: Setup Android platform tools
+      - name: Create platform-tools stub (if needed)
         run: |
-          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_SDK_ROOT \
-            "platform-tools" \
-            "platforms;android-34"
+          mkdir -p platform-tools
 
-      # ----------------------------
-      # 4. Verify adb exists (fix for your error)
-      # ----------------------------
-      - name: Verify environment
+      - name: Verify structure
         run: |
-          adb version
-          java -version
+          ls -R cmdline-tools
 
-      # ----------------------------
-      # 5. Run repo build system
-      # ----------------------------
-      - name: Prepare make script
+      - name: Make build script executable
         run: chmod +x make.sh
 
-      - name: Key generation
+      - name: Generate key
         run: ./make.sh keygen
 
       - name: Build GFN profile
         run: ./make.sh build confs/gfn/webapk.conf
 
-      # ----------------------------
-      # 6. Upload output
-      # ----------------------------
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
