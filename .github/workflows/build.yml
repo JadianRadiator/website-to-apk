@@ -19,8 +19,8 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      # REQUIRED: make.sh explicitly looks for ./cmdline-tools
-      - name: Install Android cmdline-tools (local for make.sh)
+      # Required by make.sh (it hard-checks ./cmdline-tools)
+      - name: Install Android cmdline-tools (local SDK for make.sh)
         run: |
           mkdir -p cmdline-tools
 
@@ -28,10 +28,9 @@ jobs:
 
           unzip tools.zip -d cmdline-tools
 
-          # normalize folder structure to what sdkmanager expects
           mv cmdline-tools/cmdline-tools cmdline-tools/latest
 
-      # REQUIRED: adb missing fix
+      # Required because make.sh warns about adb
       - name: Install adb (platform-tools)
         run: |
           sudo apt-get update
@@ -46,9 +45,16 @@ jobs:
         run: |
           ./make.sh try
 
-      - name: Upload APK artifact
+      # Better artifact collection (robust, no guessing paths)
+      - name: Collect build artifacts
+        run: |
+          mkdir -p artifact_out
+
+          find . -type f -name "*.apk" -exec cp --parents {} artifact_out/ \; || true
+          find . -type f -name "*.aab" -exec cp --parents {} artifact_out/ \; || true
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: webapk-build
-          path: |
-            **/*.apk
+          path: artifact_out
