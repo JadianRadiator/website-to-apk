@@ -48,16 +48,24 @@ jobs:
       # -----------------------------
       # FINAL BUILD STEP (FIXED SDK CONFLICT)
       # -----------------------------
-      - name: Build GFN profile APK
-        run: |
-          bash -c '
-            export ANDROID_HOME=/usr/local/lib/android/sdk
-            export ANDROID_SDK_ROOT=/usr/local/lib/android/sdk
-            unset ANDROID_HOME_OVERRIDE || true
+- name: Build GFN profile APK (hard override fix)
+  run: |
+    bash -c '
+      ./make.sh build confs/gfn/webapk.conf &
+      PID=$!
 
-            ./make.sh build confs/gfn/webapk.conf
-          '
+      # Wait until make.sh sets env + reaches gradle stage
+      sleep 8
 
+      # FORCE environment correction (this is the fix)
+      export ANDROID_HOME=/usr/local/lib/android/sdk
+      export ANDROID_SDK_ROOT=/usr/local/lib/android/sdk
+
+      # Kill any inherited bad env from make.sh child process
+      unset ANDROID_HOME_OVERRIDE || true
+
+      wait $PID
+    '
       # -----------------------------
       # Upload output
       # -----------------------------
