@@ -9,10 +9,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    env:
-      ANDROID_SDK_ROOT: /home/runner/android-sdk
-      ANDROID_HOME: /home/runner/android-sdk
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -23,25 +19,23 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Install Android Command Line Tools
+      # REQUIRED: make.sh explicitly looks for ./cmdline-tools
+      - name: Install Android cmdline-tools (local for make.sh)
         run: |
-          mkdir -p $ANDROID_SDK_ROOT
+          mkdir -p cmdline-tools
 
-          curl -o cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          curl -L -o tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
 
-          unzip cmdline-tools.zip -d $ANDROID_SDK_ROOT
+          unzip tools.zip -d cmdline-tools
 
-          mkdir -p $ANDROID_SDK_ROOT/cmdline-tools/latest
-          mv $ANDROID_SDK_ROOT/cmdline-tools/* $ANDROID_SDK_ROOT/cmdline-tools/latest/ || true
+          # normalize folder structure to what sdkmanager expects
+          mv cmdline-tools/cmdline-tools cmdline-tools/latest
 
-          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses || true
-
-      - name: Install required SDK packages
+      # REQUIRED: adb missing fix
+      - name: Install adb (platform-tools)
         run: |
-          $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager \
-            "platform-tools" \
-            "platforms;android-34" \
-            "build-tools;34.0.0"
+          sudo apt-get update
+          sudo apt-get install -y adb
 
       - name: Make scripts executable
         run: |
@@ -52,7 +46,7 @@ jobs:
         run: |
           ./make.sh try
 
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: webapk-build
