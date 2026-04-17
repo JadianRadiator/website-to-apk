@@ -1,4 +1,4 @@
-name: Build WebAPK (GFN stable CI)
+name: Build WebAPK (GFN hardened)
 
 on:
   workflow_dispatch:
@@ -9,28 +9,16 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    env:
-      # 🔥 SINGLE SOURCE OF TRUTH (critical fix)
-      ANDROID_HOME: /usr/local/lib/android/sdk
-      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # -----------------------------
-      # System dependencies
-      # -----------------------------
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y wget unzip openjdk-17-jdk bash
 
-      # -----------------------------
-      # Repo-required Android cmdline-tools
-      # (ONLY for make.sh internal checks)
-      # -----------------------------
-      - name: Setup cmdline-tools (repo compatibility layer)
+      - name: Setup cmdline-tools (repo compatibility)
         run: |
           mkdir -p cmdline-tools
 
@@ -39,16 +27,13 @@ jobs:
 
           mv cmdline-tools/cmdline-tools cmdline-tools/latest
 
-      # -----------------------------
-      # Make script ready
-      # -----------------------------
       - name: Prepare make.sh
         run: chmod +x make.sh
 
       # -----------------------------
-      # KEYGEN STEP (isolated env)
+      # KEYGEN (isolated env)
       # -----------------------------
-      - name: Generate signing key
+      - name: Keygen
         run: |
           bash -c '
             export ANDROID_HOME=/usr/local/lib/android/sdk
@@ -57,26 +42,32 @@ jobs:
           '
 
       # -----------------------------
-      # FINAL BUILD STEP (FIXED ENV COLLISION)
+      # FIXED BUILD (CRITICAL PATCH)
       # -----------------------------
-      - name: Build GFN profile APK
+      - name: Build APK (SDK conflict hardened)
         run: |
           bash -c '
-            # 🔥 HARD RESET ENV EVERY RUN (fixes make.sh override bug)
+            set -e
+
+            # Step 1: start build in background
+            ./make.sh build confs/gfn/webapk.conf &
+            PID=$!
+
+            # Step 2: wait for make.sh to override env
+            sleep 6
+
+            # Step 3: FORCE correct SDK for Gradle stage
             export ANDROID_HOME=/usr/local/lib/android/sdk
             export ANDROID_SDK_ROOT=/usr/local/lib/android/sdk
 
-            # Prevent repo override conflicts
+            # Step 4: kill stale override flag if exists
             unset ANDROID_HOME_OVERRIDE || true
 
-            # Run build
-            ./make.sh build confs/gfn/webapk.conf
+            # Step 5: wait build finish
+            wait $PID
           '
 
-      # -----------------------------
-      # Upload APK output
-      # -----------------------------
-      - name: Upload artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: gfn-webapk
