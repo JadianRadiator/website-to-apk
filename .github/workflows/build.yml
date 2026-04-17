@@ -1,69 +1,45 @@
-name: Build WebAPK (GFN stable fixed)
+name: Build WebAPK
 
 on:
   workflow_dispatch:
   push:
-    branches: [ "main" ]
+    branches: [ main ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
-    env:
-      # 🔥 SINGLE SOURCE OF TRUTH (critical)
-      ANDROID_HOME: /usr/local/lib/android/sdk
-      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
-
     steps:
-      - name: Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Force ONLY make.sh SDK environment
         run: |
-          sudo apt-get update
-          sudo apt-get install -y wget unzip openjdk-17-jdk bash
+          # wipe runner SDK completely
+          echo "ANDROID_HOME=" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=" >> $GITHUB_ENV
 
-      - name: Setup cmdline-tools (required by make.sh)
+          # ensure make.sh becomes the only possible source
+          echo "USE_CUSTOM_SDK=true" >> $GITHUB_ENV
+
+      - name: Make scripts executable
         run: |
-          mkdir -p cmdline-tools
+          chmod +x make.sh
+          chmod +x gradlew
 
-          wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
-          unzip tools.zip -d cmdline-tools
-
-          mv cmdline-tools/cmdline-tools cmdline-tools/latest
-
-      - name: Prepare build script
-        run: chmod +x make.sh
-
-      # -----------------------------
-      # KEYGEN (must match SDK)
-      # -----------------------------
-      - name: Generate key
+      - name: Run make.sh build
         run: |
-          ./make.sh keygen
+          ./make.sh try
 
-      # -----------------------------
-      # FINAL FIX: prevent SDK mismatch at source
-      # -----------------------------
-      - name: Build APK (strict SDK lock)
-        run: |
-          set -e
-
-          # HARD LOCK environment BEFORE ANY GRADLE CALL
-          export ANDROID_HOME=/usr/local/lib/android/sdk
-          export ANDROID_SDK_ROOT=/usr/local/lib/android/sdk
-
-          # Run build normally
-          ./make.sh build confs/gfn/webapk.conf
-
-      # -----------------------------
-      # Upload APK
-      # -----------------------------
-      - name: Upload artifact
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: gfn-webapk
+          name: webapk-build
           path: |
             **/*.apk
-            **/build/outputs/**
-            **/out/**
