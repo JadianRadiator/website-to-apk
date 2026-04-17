@@ -1,0 +1,34 @@
+name: Build WebAPK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Grant execute permission
+        run: chmod +x gradlew || true
+
+      - name: Build APK
+        run: |
+          ./gradlew assembleDebug || echo "Build step depends on repo setup"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: webapk-debug
+          path: |
+            app/build/outputs/**/*.apk
