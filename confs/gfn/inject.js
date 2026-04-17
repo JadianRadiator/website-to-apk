@@ -1,40 +1,87 @@
 (function () {
-    console.log("[GFN FIX] profile loaded");
-
-    const LOCK_INTERVAL = 180;
-    let allowRelock = true;
-    let loop = null;
+    console.log("[GFN FIX] stable mode loaded");
 
     const target = document.body || document.documentElement;
 
-    function requestLock() {
+    let allowRelock = true;
+    let escDownTime = 0;
+    let held = false;
+    const HOLD = 1100;
+
+    function requestLockOnce() {
         try { target.requestPointerLock(); } catch (e) {}
-
-        // redundancy for WebView instability
-        setTimeout(() => { try { target.requestPointerLock(); } catch (e) {} }, 30);
-        setTimeout(() => { try { target.requestPointerLock(); } catch (e) {} }, 90);
-        setTimeout(() => { try { target.requestPointerLock(); } catch (e) {} }, 150);
     }
 
-    function startLoop() {
-        if (loop) return;
-
-        loop = setInterval(() => {
-            if (!document.pointerLockElement && allowRelock) {
-                requestLock();
-            }
-        }, LOCK_INTERVAL);
-    }
-
-    function stopLoop() {
-        if (loop) {
-            clearInterval(loop);
-            loop = null;
+    function safeRecover() {
+        if (!document.pointerLockElement && allowRelock) {
+            requestLockOnce();
+            setTimeout(requestLockOnce, 80);
         }
     }
 
-    // -----------------------------
-    // ESC handling (GFN behavior fix)
+    // -------------------------
+    // ESC handling (unchanged behavior)
+    // -------------------------
+
+    window.addEventListener("keydown", (e) => {
+        if (e.key !== "Escape") return;
+
+        escDownTime = Date.now();
+        held = false;
+
+        setTimeout(() => {
+            if (Date.now() - escDownTime >= HOLD) {
+                held = true;
+                allowRelock = false;
+            }
+        }, HOLD);
+
+        e.preventDefault();
+        e.stopImmediatePropagation();
+    }, true);
+
+    window.addEventListener("keyup", (e) => {
+        if (e.key !== "Escape") return;
+
+        const dt = Date.now() - escDownTime;
+
+        if (!held && dt < HOLD) {
+            document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+            document.dispatchEvent(new KeyboardEvent("keyup", { key: "Escape", bubbles: true }));
+
+            allowRelock = true;
+            safeRecover();
+
+        } else {
+            allowRelock = false;
+            document.exitPointerLock?.();
+        }
+    }, true);
+
+    // -------------------------
+    // Recovery hooks (ONLY event-based, no spam loop)
+    // -------------------------
+
+    document.addEventListener("pointerlockchange", () => {
+        safeRecover();
+    });
+
+    window.addEventListener("focus", () => {
+        safeRecover();
+    });
+
+    document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) safeRecover();
+    });
+
+    ["click", "touchstart"].forEach(evt => {
+        window.addEventListener(evt, () => safeRecover(), true);
+    });
+
+    // initial attempt only
+    setTimeout(safeRecover, 900);
+
+})();    // ESC handling (GFN behavior fix)
     // -----------------------------
 
     let escDownTime = 0;
