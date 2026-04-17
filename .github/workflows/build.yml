@@ -1,4 +1,4 @@
-name: Build WebAPK
+name: Build WebAPK (make.sh)
 
 on:
   workflow_dispatch:
@@ -10,25 +10,30 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
-
-      - name: Grant execute permission
-        run: chmod +x gradlew || true
-
-      - name: Build APK
+      - name: Set up required tools
         run: |
-          ./gradlew assembleDebug || echo "Build step depends on repo setup"
+          sudo apt-get update
+          sudo apt-get install -y bash
 
-      - name: Upload artifact
+      - name: Ensure make.sh is executable
+        run: chmod +x make.sh
+
+      - name: Generate key (required step)
+        run: |
+          ./make.sh keygen
+
+      - name: Build GFN profile APK
+        run: |
+          ./make.sh build confs/gfn/webapk.conf
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: webapk-debug
+          name: gfn-webapk
           path: |
-            app/build/outputs/**/*.apk
+            **/*.apk
+            **/build/**
+            **/out/**
