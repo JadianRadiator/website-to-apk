@@ -19,8 +19,7 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      # Required by make.sh (it hard-checks ./cmdline-tools)
-      - name: Install Android cmdline-tools (local SDK for make.sh)
+      - name: Install Android cmdline-tools (FIXED STRUCTURE)
         run: |
           mkdir -p cmdline-tools
 
@@ -28,10 +27,11 @@ jobs:
 
           unzip tools.zip -d cmdline-tools
 
-          mv cmdline-tools/cmdline-tools cmdline-tools/latest
+          # FIX: correct expected structure
+          mkdir -p cmdline-tools/latest
+          mv cmdline-tools/cmdline-tools/* cmdline-tools/latest/
 
-      # Required because make.sh warns about adb
-      - name: Install adb (platform-tools)
+      - name: Install adb
         run: |
           sudo apt-get update
           sudo apt-get install -y adb
@@ -45,11 +45,9 @@ jobs:
         run: |
           ./make.sh try
 
-      # Better artifact collection (robust, no guessing paths)
-      - name: Collect build artifacts
+      - name: Collect build artifacts (safe)
         run: |
           mkdir -p artifact_out
-
           find . -type f -name "*.apk" -exec cp --parents {} artifact_out/ \; || true
           find . -type f -name "*.aab" -exec cp --parents {} artifact_out/ \; || true
 
