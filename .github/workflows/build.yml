@@ -9,6 +9,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    env:
+      ANDROID_SDK_ROOT: /home/runner/android-sdk
+      ANDROID_HOME: /home/runner/android-sdk
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -19,25 +23,36 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Force ONLY make.sh SDK environment
+      - name: Install Android Command Line Tools
         run: |
-          # wipe runner SDK completely
-          echo "ANDROID_HOME=" >> $GITHUB_ENV
-          echo "ANDROID_SDK_ROOT=" >> $GITHUB_ENV
+          mkdir -p $ANDROID_SDK_ROOT
 
-          # ensure make.sh becomes the only possible source
-          echo "USE_CUSTOM_SDK=true" >> $GITHUB_ENV
+          curl -o cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+
+          unzip cmdline-tools.zip -d $ANDROID_SDK_ROOT
+
+          mkdir -p $ANDROID_SDK_ROOT/cmdline-tools/latest
+          mv $ANDROID_SDK_ROOT/cmdline-tools/* $ANDROID_SDK_ROOT/cmdline-tools/latest/ || true
+
+          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+      - name: Install required SDK packages
+        run: |
+          $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager \
+            "platform-tools" \
+            "platforms;android-34" \
+            "build-tools;34.0.0"
 
       - name: Make scripts executable
         run: |
           chmod +x make.sh
           chmod +x gradlew
 
-      - name: Run make.sh build
+      - name: Run build
         run: |
           ./make.sh try
 
-      - name: Upload APK artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: webapk-build
