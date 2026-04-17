@@ -1,4 +1,4 @@
-name: Build WebAPK (make.sh)
+name: Build WebAPK (make.sh + Android CLI)
 
 on:
   workflow_dispatch:
@@ -9,27 +9,69 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    env:
+      ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up required tools
+      # ----------------------------
+      # 1. Install system dependencies
+      # ----------------------------
+      - name: Install base tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y bash
+          sudo apt-get install -y wget unzip bash openjdk-17-jdk
 
-      - name: Ensure make.sh is executable
+      # ----------------------------
+      # 2. Install Android Command Line Tools
+      # ----------------------------
+      - name: Install Android SDK CLI
+        run: |
+          mkdir -p $ANDROID_SDK_ROOT/cmdline-tools
+          cd $ANDROID_SDK_ROOT
+
+          wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
+          unzip tools.zip -d cmdline-tools
+          mv cmdline-tools/cmdline-tools cmdline-tools/latest
+
+          echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
+
+      # ----------------------------
+      # 3. Accept licenses + install platform tools
+      # ----------------------------
+      - name: Setup Android platform tools
+        run: |
+          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_SDK_ROOT \
+            "platform-tools" \
+            "platforms;android-34"
+
+      # ----------------------------
+      # 4. Verify adb exists (fix for your error)
+      # ----------------------------
+      - name: Verify environment
+        run: |
+          adb version
+          java -version
+
+      # ----------------------------
+      # 5. Run repo build system
+      # ----------------------------
+      - name: Prepare make script
         run: chmod +x make.sh
 
-      - name: Generate key (required step)
-        run: |
-          ./make.sh keygen
+      - name: Key generation
+        run: ./make.sh keygen
 
-      - name: Build GFN profile APK
-        run: |
-          ./make.sh build confs/gfn/webapk.conf
+      - name: Build GFN profile
+        run: ./make.sh build confs/gfn/webapk.conf
 
-      - name: Upload APK artifact
+      # ----------------------------
+      # 6. Upload output
+      # ----------------------------
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: gfn-webapk
