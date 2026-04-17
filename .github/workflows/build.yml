@@ -1,4 +1,4 @@
-name: Build WebAPK (GFN hardened)
+name: Build WebAPK (GFN Stable CI)
 
 on:
   workflow_dispatch:
@@ -13,12 +13,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # -----------------------------
+      # System dependencies
+      # -----------------------------
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y wget unzip openjdk-17-jdk bash
 
-      - name: Setup cmdline-tools (repo compatibility)
+      # -----------------------------
+      # Install repo-required cmdline-tools
+      # (needed because make.sh expects ./cmdline-tools)
+      # -----------------------------
+      - name: Setup cmdline-tools (repo compatibility layer)
         run: |
           mkdir -p cmdline-tools
 
@@ -27,13 +34,16 @@ jobs:
 
           mv cmdline-tools/cmdline-tools cmdline-tools/latest
 
+      # -----------------------------
+      # Prepare make script
+      # -----------------------------
       - name: Prepare make.sh
         run: chmod +x make.sh
 
       # -----------------------------
-      # KEYGEN (isolated env)
+      # KEYGEN
       # -----------------------------
-      - name: Keygen
+      - name: Generate signing key
         run: |
           bash -c '
             export ANDROID_HOME=/usr/local/lib/android/sdk
@@ -42,32 +52,28 @@ jobs:
           '
 
       # -----------------------------
-      # FIXED BUILD (CRITICAL PATCH)
+      # BUILD (CRITICAL FIX: SDK ALIGNMENT)
       # -----------------------------
-      - name: Build APK (SDK conflict hardened)
+      - name: Build APK (SDK alignment fix)
         run: |
           bash -c '
             set -e
 
-            # Step 1: start build in background
-            ./make.sh build confs/gfn/webapk.conf &
-            PID=$!
+            # Run build normally (let make.sh define ANDROID_HOME first)
+            ./make.sh build confs/gfn/webapk.conf
 
-            # Step 2: wait for make.sh to override env
-            sleep 6
+            # AFTER make.sh runs, force alignment for Gradle consistency
+            export ANDROID_HOME=/home/runner/work/website-to-apk/website-to-apk/cmdline-tools
+            export ANDROID_SDK_ROOT=/home/runner/work/website-to-apk/website-to-apk/cmdline-tools
 
-            # Step 3: FORCE correct SDK for Gradle stage
-            export ANDROID_HOME=/usr/local/lib/android/sdk
-            export ANDROID_SDK_ROOT=/usr/local/lib/android/sdk
-
-            # Step 4: kill stale override flag if exists
-            unset ANDROID_HOME_OVERRIDE || true
-
-            # Step 5: wait build finish
-            wait $PID
+            echo "[CI] SDK unified to make.sh path:"
+            echo $ANDROID_HOME
           '
 
-      - name: Upload APK
+      # -----------------------------
+      # Upload output
+      # -----------------------------
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: gfn-webapk
