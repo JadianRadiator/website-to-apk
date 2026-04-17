@@ -19,7 +19,7 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      # REQUIRED: make.sh explicitly expects ./cmdline-tools
+      # REQUIRED: make.sh expects ./cmdline-tools exactly
       - name: Install Android cmdline-tools (correct structure)
         run: |
           mkdir -p cmdline-tools
@@ -28,11 +28,11 @@ jobs:
 
           unzip tools.zip -d cmdline-tools
 
-          # normalize structure so sdkmanager exists where expected
+          # normalize structure for sdkmanager
           mkdir -p cmdline-tools/latest
           mv cmdline-tools/cmdline-tools/* cmdline-tools/latest/
 
-      # REQUIRED: adb fix
+      # REQUIRED: adb for make.sh warning
       - name: Install adb
         run: |
           sudo apt-get update
@@ -47,27 +47,27 @@ jobs:
         run: |
           ./make.sh try
 
-      # DEBUG STEP: show where outputs actually went
-      - name: Locate build outputs
+      # DEBUG: confirm where Gradle actually output files
+      - name: Debug build outputs
         run: |
-          echo "=== APK FILES ==="
-          find . -type f -name "*.apk" || true
+          echo "=== Searching full workspace for APKs ==="
+          find . -type f -name "*.apk" | sort || true
 
-          echo "=== OUTPUT DIRECTORIES ==="
-          find . -type d -path "*build/outputs*" || true
+          echo "=== Searching Gradle output directories ==="
+          find . -type d -path "*build/outputs*" | sort || true
 
-      # SAFE COLLECTION: grab anything built anywhere
+      # SAFE COLLECTION: grab everything regardless of variant/folder
       - name: Collect build artifacts
         run: |
           mkdir -p artifact_out
 
-          echo "Collecting APKs..."
+          echo "Copying APKs..."
           find . -type f -name "*.apk" -exec cp --parents {} artifact_out/ \; || true
 
-          echo "Collecting AABs..."
+          echo "Copying AABs..."
           find . -type f -name "*.aab" -exec cp --parents {} artifact_out/ \; || true
 
-          echo "Final artifact tree:"
+          echo "Artifact tree:"
           find artifact_out || true
 
       - name: Upload artifact
