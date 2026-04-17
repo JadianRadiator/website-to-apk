@@ -19,7 +19,8 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Install Android cmdline-tools (FIXED STRUCTURE)
+      # REQUIRED: make.sh explicitly expects ./cmdline-tools
+      - name: Install Android cmdline-tools (correct structure)
         run: |
           mkdir -p cmdline-tools
 
@@ -27,10 +28,11 @@ jobs:
 
           unzip tools.zip -d cmdline-tools
 
-          # FIX: correct expected structure
+          # normalize structure so sdkmanager exists where expected
           mkdir -p cmdline-tools/latest
           mv cmdline-tools/cmdline-tools/* cmdline-tools/latest/
 
+      # REQUIRED: adb fix
       - name: Install adb
         run: |
           sudo apt-get update
@@ -45,11 +47,28 @@ jobs:
         run: |
           ./make.sh try
 
-      - name: Collect build artifacts (safe)
+      # DEBUG STEP: show where outputs actually went
+      - name: Locate build outputs
+        run: |
+          echo "=== APK FILES ==="
+          find . -type f -name "*.apk" || true
+
+          echo "=== OUTPUT DIRECTORIES ==="
+          find . -type d -path "*build/outputs*" || true
+
+      # SAFE COLLECTION: grab anything built anywhere
+      - name: Collect build artifacts
         run: |
           mkdir -p artifact_out
+
+          echo "Collecting APKs..."
           find . -type f -name "*.apk" -exec cp --parents {} artifact_out/ \; || true
+
+          echo "Collecting AABs..."
           find . -type f -name "*.aab" -exec cp --parents {} artifact_out/ \; || true
+
+          echo "Final artifact tree:"
+          find artifact_out || true
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
